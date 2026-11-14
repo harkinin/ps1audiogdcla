@@ -1,0 +1,76 @@
+name: Build WebAssembly GDExtension
+
+on:
+  push:
+    branches: [web-wasm-build]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 4.0.10
+          actions-cache-folder: emsdk-cache
+
+      - name: Install SCons
+        run: python -m pip install --upgrade scons
+
+      - name: Get godot-cpp
+        run: git clone --depth 1 --branch master https://github.com/godotengine/godot-cpp.git godot-cpp
+
+      - name: Build release WebAssembly side module
+        run: scons platform=web target=template_release arch=wasm32
+
+      - name: Package extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t wasm_files < <(find addons/ps1_audio_effect/bin -maxdepth 1 -type f -name '*.wasm')
+          if [ "${#wasm_files[@]}" -ne 1 ]; then
+            echo "Expected exactly one WebAssembly library, found ${#wasm_files[@]}"
+            find addons/ps1_audio_effect/bin -maxdepth 1 -type f -print
+            exit 1
+          fi
+
+          mkdir -p dist/addons/ps1_audio_effect/bin
+          cp -a addons/ps1_audio_effect/. dist/addons/ps1_audio_effect/
+          cp "${wasm_files[0]}" dist/addons/ps1_audio_effect/bin/
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          extension = Path("dist/addons/ps1_audio_effect/ps1_audio_effect.gdextension")
+          library = next(Path("dist/addons/ps1_audio_effect/bin").glob("*.wasm"))
+          lines = extension.read_text(encoding="utf-8").splitlines()
+          lines = [line for line in lines if not re.match(r"^web\.release\.wasm32\s*=", line.strip())]
+          lines.append(f'web.release.wasm32 = "res://addons/ps1_audio_effect/bin/{library.name}"')
+          extension.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          print(f"Configured Web library: {library.name}")
+          PY
+
+          cd dist
+          zip -r ../ps1-audio-effect-web-wasm.zip addons/ps1_audio_effect
+
+      - name: Upload WebAssembly extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: ps1-audio-effect-web-wasm
+          path: ps1-audio-effect-web-wasm.zip
+          if-no-files-found: error
+          retention-days: 30
