@@ -1,0 +1,11 @@
+[configuration]
+entry_symbol = "ps1_audio_effect_library_init"
+compatibility_minimum = "4.7"
+; Hot-reload is off on purpose: the effect's instance lives on the audio
+; thread, and unloading the DLL underneath a live Master-bus effect crashes
+; the editor. Restart the editor after replacing the DLL.
+reloadable = false
+
+[libraries]
+windows.debug.x86_64 = "res://addons/ps1_audio_effect/bin/ps1_audio_effect.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://addons/ps1_audio_effect/bin/ps1_audio_effect.windows.template_release.x86_64.dll"

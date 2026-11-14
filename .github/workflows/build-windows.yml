@@ -1,0 +1,49 @@
+name: Build Windows x64 GDExtension
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install SCons
+        run: python -m pip install --upgrade scons
+        shell: pwsh
+
+      - name: Check out Godot C++ bindings
+        run: git clone --depth 1 --branch master https://github.com/godotengine/godot-cpp.git godot-cpp
+        shell: pwsh
+
+      - name: Build debug DLL
+        run: scons platform=windows target=template_debug arch=x86_64 -j2
+        shell: pwsh
+
+      - name: Package extension
+        run: |
+          if (!(Test-Path "addons/ps1_audio_effect/bin/ps1_audio_effect.windows.template_debug.x86_64.dll")) {
+            throw "Debug DLL was not produced."
+          }
+          Compress-Archive -Path "addons/ps1_audio_effect" -DestinationPath "ps1-audio-effect-windows-x64.zip" -Force
+        shell: pwsh
+
+      - name: Upload compiled extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: ps1-audio-effect-windows-x64
+          path: ps1-audio-effect-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30
