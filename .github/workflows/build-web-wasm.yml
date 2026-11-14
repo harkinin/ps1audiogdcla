@@ -34,7 +34,7 @@ jobs:
         run: git clone --depth 1 --branch master https://github.com/godotengine/godot-cpp.git godot-cpp
 
       - name: Build release WebAssembly side module
-        run: scons platform=web target=template_release arch=wasm32
+        run: scons platform=web target=template_release arch=wasm32 threads=no
 
       - name: Package extension
         shell: bash
